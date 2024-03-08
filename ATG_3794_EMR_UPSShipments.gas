@@ -1,0 +1,252 @@
+Program.Sub.ScreenSU.Start
+gui.F_Emails..create
+gui.F_Emails..caption("Shipping Information")
+gui.F_Emails..size(4365,2550)
+gui.F_Emails..position(0,0)
+gui.F_Emails..event(unload,unload)
+gui.F_Emails..alwaysontop(False)
+gui.F_Emails..fontname("Arial")
+gui.F_Emails..fontsize(8)
+gui.F_Emails..forecolor(0)
+gui.F_Emails..fontstyle(,,,,)
+gui.F_Emails..BackColor(-2147483633)
+gui.F_Emails..controlbox(True)
+gui.F_Emails..maxbutton(True)
+gui.F_Emails..minbutton(True)
+gui.F_Emails..mousepointer(0)
+gui.F_Emails..moveable(True)
+gui.F_Emails..sizeable(True)
+gui.F_Emails..ShowInTaskBar(True)
+gui.F_Emails..titlebar(True)
+gui.F_Emails.frmMailIDs.create(frame)
+gui.F_Emails.frmMailIDs.caption("Frame")
+gui.F_Emails.frmMailIDs.size(3975,1155)
+gui.F_Emails.frmMailIDs.position(200,200)
+gui.F_Emails.frmMailIDs.visible(True)
+gui.F_Emails.frmMailIDs.borderstyle(0)
+gui.F_Emails.frmMailIDs.fontname("Arial")
+gui.F_Emails.frmMailIDs.fontsize(8)
+gui.F_Emails.lblSender.create(label,"Sender's Email",True,1935,255,1,0,0,True,0,Arial,8,-2147483633,0)
+gui.F_Emails.lblSender.parent("frmmailids")
+gui.F_Emails.txtSender.create(textbox,"",True,3795,300,0,0,200,True,0,Arial,8,-2147483643,1)
+gui.F_Emails.txtSender.parent("frmmailids")
+gui.F_Emails.txtSender.event(lostfocus,lostfocus)
+gui.F_Emails.lblRecipients.create(label,"Recipient's Email",True,1935,255,1,0,600,True,0,Arial,8,-2147483633,0)
+gui.F_Emails.lblRecipients.parent("frmmailids")
+gui.F_Emails.txtRecipients.create(textbox,"",True,3795,300,0,0,800,True,0,Arial,8,-2147483643,1)
+gui.F_Emails.txtRecipients.parent("frmmailids")
+gui.F_Emails.txtRecipients.event(lostfocus,lostfocus)
+gui.F_Emails.cmdSend.create(button)
+gui.F_Emails.cmdSend.caption("Send")
+gui.F_Emails.cmdSend.visible(True)
+gui.F_Emails.cmdSend.size(1000,375)
+gui.F_Emails.cmdSend.zorder(0)
+gui.F_Emails.cmdSend.position(200,1500)
+gui.F_Emails.cmdSend.enabled(True)
+gui.F_Emails.cmdSend.fontname("Arial")
+gui.F_Emails.cmdSend.fontsize(8)
+gui.F_Emails.cmdSend.event(click,cmdsend_click)
+
+
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+Variable.Global.sRecEmail.Declare(String)
+Variable.Global.bFound.Declare(Boolean,False)
+Variable.Global.sShipVIa.Declare(String)
+Variable.Global.sCust.Declare(String)
+Variable.Global.sShipDate.Declare(String)
+Variable.Global.sTrackingNo.Declare(String)
+Variable.Global.sCustName.Declare(String)
+Variable.Global.sSenderEmail.Declare(String)
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'Quote 3236
+'Customer EMR Corporation
+
+'If not called from Presave hook, end the process
+F.Intrinsic.Control.If(V.Caller.Hook,=,28530)
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.EndIf
+
+V.Local.sSql.Declare
+V.Local.sOrderNo.Declare
+
+'set the values to variables
+V.Global.sCust.Set(V.Passed.000204)
+V.Global.sShipDate.Set(V.Passed.000206)
+V.Global.sTrackingNo.Set(V.Passed.000138)
+V.Global.sShipVia.Set(V.Passed.000180)
+V.Global.sCustName.Set(V.Passed.000112)
+V.Local.sOrderNo.Set(V.Passed.FIRST-ORDER)
+
+'Send email if a package is send only through UPS
+F.Intrinsic.Control.If(V.Global.sShipVia,<>,"")
+F.Intrinsic.Control.AndIf(V.Global.sShipVia.UCase,<>,"UPS")
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+'Open Database connection
+F.ODBC.Connection!con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+
+'Get senders Email address
+F.Global.Security.GetUserEmail(V.Caller.User,V.Caller.CompanyCode,V.Global.sSenderEmail)
+
+'---###Set the Recipients Email address###---
+V.Global.sSenderEmail.Set("")
+F.Intrinsic.String.Concat("select Contact_Email from ORDER_BILL_TO where order_NO='",V.Local.sOrderNo,"' and Record_Type='B'",V.Local.sSql)
+F.ODBC.Connection!con.OpenLocalRecordsetRO("rstEmail",V.Local.sSql)
+F.Intrinsic.Control.If(V.ODBC.con!rstEmail.EOF,=,False)
+	V.Global.sSenderEmail.Set(V.ODBC.con!rstEmail.FieldVal!Contact_Email)
+F.Intrinsic.Control.EndIf
+F.ODBC.con!rstEmail.Close
+'If EMail ID is not found in Order_Bill_To table, search in Contacts
+F.Intrinsic.Control.If(V.Global.sSenderEmail.Trim,=,"")
+	F.Intrinsic.String.Concat("select Email1 from CONTACT where Cust='",V.Global.sCust.Trim,"'",V.Local.sSql)
+	F.ODBC.Connection!con.OpenLocalRecordsetRO("rstCEmail",V.Local.sSql)
+	F.Intrinsic.Control.If(V.ODBC.con!rstCEmail.EOF,=,False)
+		V.Global.sSenderEmail.Set(V.ODBC.con!rstCEmail.FieldVal!Email1)
+	F.Intrinsic.Control.EndIf
+	F.ODBC.con!rstCEmail.Close
+F.Intrinsic.Control.EndIf
+
+'Check if Email addresses are found.
+V.Global.bFound.Set(False)
+F.Intrinsic.Control.If(V.Global.sSenderEmail.Trim,=,"")
+	V.Global.bFound.Set(True)
+F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.If(V.Global.sRecEmail.Trim,=,"")
+	V.Global.bFound.Set(True)
+F.Intrinsic.Control.EndIf
+
+'---###display the form if the sender/receipients email address is not found; i.e., V.Global.bFound=True###---
+F.Intrinsic.Control.If(V.Global.bFound,=,True)
+	'Display the available addresses in the fields and lock them
+	'Sender
+	F.Intrinsic.Control.If(V.Global.sSenderEmail.Trim,<>,"")
+		Gui.F_Emails.txtSender.Text(V.Global.sSenderEmail.Trim)
+		Gui.F_Emails.txtSender.Locked(true)
+	F.Intrinsic.Control.EndIf
+	'Recipient
+	F.Intrinsic.Control.If(V.Global.sRecEmail.Trim,<>,"")
+		Gui.F_Emails.txtRecipients.Text(V.Global.sRecEmail.Trim)
+		Gui.F_Emails.txtRecipients.Locked(true)
+	F.Intrinsic.Control.EndIf
+	Gui.F_Emails..Show
+
+'If senders & rec email IDs are found, Send the Emails
+F.Intrinsic.Control.Else
+	F.Intrinsic.Control.CallSub(Cmdsend_click)
+F.Intrinsic.Control.EndIf
+
+Program.Sub.Main.End
+
+program.sub.unload.start
+'Terminate the connection to the database
+F.ODBC.Connection!con.Close
+
+'Unload the form
+F.Intrinsic.Control.End
+
+program.sub.unload.end
+
+program.sub.cmdsend_click.start
+'If Form has to be Displayed, Get the Senders and rcpts email from form
+F.Intrinsic.Control.If(V.Global.bFound,=,True)
+	V.Global.sSenderEmail.Set(v.Screen.F_Emails!txtSender.Text.Trim)
+	V.Global.sRecEmail.Set(V.Screen.F_Emails!txtRecipients.Text.Trim)
+F.Intrinsic.Control.EndIf
+
+V.Local.iUserID.Declare
+V.Local.sSubject.Declare
+V.Local.sBody.Declare
+V.Local.sSender.Declare
+
+'Get user ID
+F.Global.Security.GetuserID(V.Caller.User,V.Caller.CompanyCode,V.Local.iUserID)
+'Sender Info
+F.Intrinsic.String.Concat(V.Global.sSenderEmail,"*!*",V.Caller.User,V.Local.sSender)
+'Body
+F.Intrinsic.String.Concat("Shipped Via: ",V.global.sShipVIa,V.Ambient.NewLine," Ship Date: ",V.Global.sShipDate,V.Ambient.NewLine,"Tracking Number: ",V.Global.sTrackingNo,V.Local.sBody)
+'Subject
+F.Intrinsic.string.Concat("Shipment Tracking Information for ",V.Global.sCustName,V.Local.sSubject)
+
+'EMail the shipping details
+F.Global.Messaging.QueueMessage(v.Caller.CompanyCode,v.Local.iUserID,v.Caller.Caller,v.Local.sSubject,v.Local.sSender,v.Global.sRecepient,v.Local.sBody)
+
+'Unloadtheform,aftertheemailissent
+F.Intrinsic.Control.CallSub(Unload)
+
+program.sub.cmdsend_click.end
+
+program.sub.lostfocus.start
+V.Local.iRet.Declare(Long)
+V.Local.sSender.Declare
+V.Local.sRecpt.Declare
+V.Local.sMsg.Declare
+V.Local.bValid.Declare(Boolean,True)
+
+V.Local.sSender.Set(V.Screen.F_Emails!txtSender.Text.Trim)
+V.Local.sRecpt.Set(V.Screen.F_Emails!txtRecipients.Text.Trim)
+
+'validate Email addresses
+F.Intrinsic.Control.If(V.Args.CONTROLNAME,=,"TXTSENDER")
+
+	F.Intrinsic.String.Occurs(V.Local.sSender,"@",V.Local.iRet)
+	F.Intrinsic.Control.If(V.Local.iRet,<>,1)
+		V.Local.bValid.Set(False)
+	F.Intrinsic.Control.EndIf
+	F.Intrinsic.String.Occurs(V.Local.sSender,".",V.Local.iRet)
+	F.Intrinsic.Control.If(V.Local.iRet,<,1)
+		V.Local.bValid.Set(False)
+	F.Intrinsic.Control.EndIf
+	F.Intrinsic.String.Occurs(V.Local.sSender," ",V.Local.iRet)
+	F.Intrinsic.Control.If(V.Local.iRet,<>,0)
+		V.Local.bValid.Set(False)
+	F.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.Control.If(V.Local.bValid,=,False)
+		F.Intrinsic.string.Concat("Senders ID invalid","Enter a valid EMail address",V.Local.sMsg)
+		F.Intrinsic.UI.Msgbox(V.Local.sMsg,"Shipping Information")
+		Gui.F_Emails.txtSender.SetFocus
+		F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ElseIf(V.Args.CONTROLNAME,=,"TXTRECIPIENTS")
+
+
+	F.Intrinsic.String.Occurs(V.Local.sRecpt,"@",V.Local.iRet)
+	F.Intrinsic.Control.If(V.Local.iRet,<>,1)
+		V.Local.bValid.Set(False)
+	F.Intrinsic.Control.EndIf
+	F.Intrinsic.String.Occurs(V.Local.sRecpt,".",V.Local.iRet)
+	F.Intrinsic.Control.If(V.Local.iRet,<>,1)
+		V.Local.bValid.Set(False)
+	F.Intrinsic.Control.EndIf
+	F.Intrinsic.String.Occurs(V.Local.sRecpt," ",V.Local.iRet)
+	F.Intrinsic.Control.If(V.Local.iRet,<>,0)
+		V.Local.bValid.Set(False)
+	F.Intrinsic.Control.EndIf
+
+	F.Intrinsic.Control.If(V.Local.bValid,=,False)
+		F.Intrinsic.string.Concat("Recipients ID invalid","Enter a valid EMail address",V.Local.sMsg)
+		F.Intrinsic.UI.Msgbox(V.Local.sMsg,"Shipping Information")
+		Gui.F_Emails.txtRecipients.SetFocus
+	F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.EndIf
+
+program.sub.lostfocus.end
+
+Program.Sub.Comments.Start
+${$0$}$ATG_EMR_Shipments.$}$CHANDANA$}$2/8/2012
+${$1$}$$}$$}$0$}$28530$}$Pre-Save Hook$}$2/8/2012 7:55:23 AM$}$(Program: ORD0FSGI; Screen: OES0FSN)
+
+${$3$}$0$}$$}$-1$}$-1$}$$}$1/1/1900$}$Quote Number: 3236
+Customer Name: EMR Corporation
+Contact Name: Lorraine Lively
+Title: Email upon Shipment
+
+Program.Sub.Comments.End
+
